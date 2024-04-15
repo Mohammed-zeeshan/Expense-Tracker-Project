@@ -25,8 +25,10 @@ exports.postsignup = async (req, res, next) => {
       if (data.length === 1) {
         res.status(201).json({message: "User already exist"});
       }
+      bcrypt.hash(password, 10, async (err, hash) => {
         await SignUp.create({name, email, password: hash})
           res.status(201).json({message: "New user Created"});
+      })
     })
   } catch (err) {
     res.status(500).json(err);
@@ -39,13 +41,13 @@ exports.postlogin = async (req, res, next) => {
       if (data.length === 0) {
         return res.status(201).json({success: false, message: "User not found"});
       }
-      if (password === data[0].password) {
+      bcrypt.compare(password, data[0].password, (err) => {
         if (!err){
           res.status(201).json({success: true, message: "User login successful"});
         } else {
           return res.status(201).json({success: false, message: "User not authorized"});
         }
-      }
+      })
     }).catch((err) => {
       console.log(err);
     })
