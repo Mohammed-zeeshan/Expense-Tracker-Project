@@ -1,13 +1,25 @@
 const Expense = require("../models/expense");
+const sequelize = require('../util/database');
 
 exports.postExpense = async (req, res, next) => {
-        const amount = req.body.amount;
-        const description = req.body.description;
-        const category = req.body.category;
-        const signupId = req.user.id;
-        await Expense.create({amount, description, category, signupId}).then(expense => {
+    const t = await sequelize.transaction();
+    const amount = req.body.amount;
+    const description = req.body.description;
+    const category = req.body.category;
+    const signupId = req.user.id;
+    await Expense.create({amount, description, category, signupId}, {transaction: t}).then(expense => {
+        const totalExpense = Number(req.user.totalExpense) + Number(amount)
+        req.user.update({totalExpense: totalExpense}, {transaction: t}).then(async() => {
+            await t.commit();
             return res.status(201).json({expense, message: 'Expense added'});
-        }).catch(err => console.log(err));
+        }).catch(async(err) => {
+            await t.rollback();
+            console.log(err)
+        });
+    }).catch(async(err) => {
+        await t.rollback();
+        console.log(err)
+    });
 }
 
 exports.getExpense = async (req, res, next) => {
@@ -22,9 +34,22 @@ exports.getExpense = async (req, res, next) => {
 
 exports.deleteExpense = async (req, res, next) => {
     try{
+        const t = await sequelize.transaction();
         const id = req.body.id;
-        Expense.destroy({where: {id: id, signupId: req.user.id}})
-        res.status(201).json({message: "Success"})
+        const amount = req.body.amount;
+        Expense.destroy({where: {id: id, signupId: req.user.id}}, {transaction: t}).then(() => {
+            const totalExpense = Number(req.user.totalExpense - Number(amount));
+            req.user.update({totalExpense: totalExpense}, {transaction: t}).then(async() => {
+                await t.commit();
+                res.status(201).json({message: "Success"})
+            }).catch(async() => {
+                await t.rollback();
+                console.log(err);
+            })
+        }).catch(async() => {
+            await t.rollback();
+            console.log(err);
+        })
     } catch (err) {
         res.status(500).json(err);
     }
